@@ -2,19 +2,27 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 import pandas as pd
 
-url = "http://ufcstats.com/fight-details/a10deecfb8558335"
+def get_fight_urls(page, event_url):
 
-def main():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+    fight_urls = []
 
-        page = browser.new_page()
-            
-        page.goto(url, wait_until="networkidle")
+    page.goto(event_url, wait_until="networkidle")
         
-        html_content = page.content()
+    html_content = page.content()
+
+    event = BeautifulSoup(html_content, "html.parser")
+    fights = event.find_all("tr", class_="b-fight-details__table-row b-fight-details__table-row__hover js-fight-details-click")
+    for fight in fights:
+        fight_link = fight.get('data-link')
+        if fight_link:
+            fight_urls.append(fight_link)
+    return fight_urls
+
+def scrape_fight_data(page, fight_url):
+
+    page.goto(fight_url, wait_until="networkidle")
         
-        browser.close()
+    html_content = page.content()
 
     soup = BeautifulSoup(html_content, "html.parser")
 
@@ -54,8 +62,36 @@ def main():
         parsed_rows.append(fighter_a_stats)
         parsed_rows.append(fighter_b_stats)
 
-    df = pd.DataFrame(parsed_rows, columns=fight_details_titles)
+    return parsed_rows, fight_details_titles
+
+def main():
+
+    master_parsed_rows = [] 
+    final_titles = []
+
+    event_url = "http://ufcstats.com/event-details/495add4fbede0a44"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+
+        page = browser.new_page()
+                            
+        fight_urls = get_fight_urls(page, event_url)
+
+        for fight in fight_urls:
+            fight_data, titles = scrape_fight_data(page, fight)
+
+            master_parsed_rows.extend(fight_data)
+            final_titles = titles
+
+        browser.close()
+
+
+    df = pd.DataFrame(master_parsed_rows, columns=final_titles)
 
     print("\n--- PANDAS DATAFRAME SUCCESS ---")
     df = df.dropna(how='all')
     print(df.to_string(index=False))
+
+if __name__ == "__main__":
+    main()
