@@ -44,11 +44,8 @@ def get_fight_urls(page, event_url):
 
 
 def scrape_fight_data(page, fight_url):
-
     page.goto(fight_url, wait_until="networkidle")
-
     html_content = page.content()
-
     soup = BeautifulSoup(html_content, "html.parser")
 
     all_tables = soup.find_all("table")
@@ -57,41 +54,59 @@ def scrape_fight_data(page, fight_url):
         print("  -> No stats table found. Skipping upcoming/empty fight!")
         return None, None
 
-    table = all_tables[1]
+    table_0 = all_tables[0]
+    table_1 = all_tables[1]
 
-    first_row = table.find("tr")
+    t0_titles = [title.text.strip() for title in table_0.find("tr").find_all("th")]
+    t1_titles = [title.text.strip() for title in table_1.find("tr").find_all("th")]
 
-    table_titles = first_row.find_all("th")
+    t1_titles_clean = [f"{t} (SS)" for t in t1_titles[1:]]
 
-    fight_details_titles = [title.text.strip() for title in table_titles]
-
-    df = pd.DataFrame(columns=fight_details_titles)
+    fight_details_titles = t0_titles + t1_titles_clean
 
     parsed_rows = []
+    t0_rows = table_0.find_all("tr")
+    t1_rows = table_1.find_all("tr")
 
-    for row in table.find_all("tr"):
-        cells = row.find_all(["th", "td"])
-        if not cells:
+    for row_0, row_1 in zip(t0_rows, t1_rows):
+        cells_0 = row_0.find_all(["th", "td"])
+        cells_1 = row_1.find_all(["th", "td"])
+
+        if not cells_0 or not cells_1:
             continue
 
-        row_data = [cell.get_text(separator=" | ", strip=True) for cell in cells]
+        row_data_0 = [cell.get_text(separator=" | ", strip=True) for cell in cells_0]
+        row_data_1 = [cell.get_text(separator=" | ", strip=True) for cell in cells_1]
 
-        if len(row_data) != len(fight_details_titles) or row_data[0] == "Fighter":
+        if len(row_data_0) != len(t0_titles) or row_data_0[0] == "Fighter":
             continue
 
-        fighter_a_stats = []
-        fighter_b_stats = []
-        for cell_value in row_data:
+        fighter_a_t0, fighter_b_t0 = [], []
+        fighter_a_t1, fighter_b_t1 = [], []
+
+        for cell_value in row_data_0:
             if " | " in cell_value:
                 a, b = cell_value.split(" | ")
-                fighter_a_stats.append(a)
-                fighter_b_stats.append(b)
+                fighter_a_t0.append(a)
+                fighter_b_t0.append(b)
             else:
-                fighter_a_stats.append(cell_value)
-                fighter_b_stats.append(cell_value)
+                fighter_a_t0.append(cell_value)
+                fighter_b_t0.append(cell_value)
 
-        parsed_rows.append(fighter_a_stats)
-        parsed_rows.append(fighter_b_stats)
+        for cell_value in row_data_1:
+            if " | " in cell_value:
+                a, b = cell_value.split(" | ")
+                fighter_a_t1.append(a)
+                fighter_b_t1.append(b)
+            else:
+                fighter_a_t1.append(cell_value)
+                fighter_b_t1.append(cell_value)
+
+        combined_fighter_a = fighter_a_t0 + fighter_a_t1[1:]
+        combined_fighter_b = fighter_b_t0 + fighter_b_t1[1:]
+
+        parsed_rows.append(combined_fighter_a)
+        parsed_rows.append(combined_fighter_b)
 
     return parsed_rows, fight_details_titles
 
