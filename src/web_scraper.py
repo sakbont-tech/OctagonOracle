@@ -1,25 +1,3 @@
-"""
-UFC stats scraper.
-
-Polite-crawling changes from the original version (see chat for the full
-explanation):
-  - Every navigation is followed by a randomized delay (MIN_DELAY-MAX_DELAY),
-    not just fight pages.
-  - safe_goto() retries failed/blocked requests with exponential backoff, and
-    reacts specifically to HTTP 429 (the site explicitly asking us to slow
-    down) with a much longer, escalating pause.
-  - Progress is checkpointed per event: a finished event's rows are written
-    to disk and its URL recorded in scrape_progress.json immediately, so
-    re-running the script skips events you already have instead of
-    re-scraping the whole site from zero.
-  - If any fight inside an event fails to load even after retries, that
-    event's rows are dropped for this run (not written) and the event is
-    left unmarked, so the *whole* event retries cleanly next run instead of
-    risking duplicate rows from a partial write.
-  - browser.close() now runs in a finally block, so it still happens if
-    something raises partway through.
-"""
-
 import json
 import os
 import random
@@ -29,12 +7,11 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
-# --- Politeness / reliability settings, tune to taste ----------------------
-MIN_DELAY = 3.0            # seconds, floor for the randomized inter-request delay
-MAX_DELAY = 6.0            # seconds, ceiling for the randomized inter-request delay
-MAX_RETRIES = 4            # attempts per URL before giving up on it
-BACKOFF_BASE = 8.0         # seconds; generic failures back off BACKOFF_BASE * 2**(attempt-1)
-RATE_LIMIT_BACKOFF = 60.0  # seconds; HTTP 429 backs off RATE_LIMIT_BACKOFF * attempt
+MIN_DELAY = 3.0          
+MAX_DELAY = 6.0            
+MAX_RETRIES = 4            
+BACKOFF_BASE = 8.0         
+RATE_LIMIT_BACKOFF = 60.0  
 NAV_TIMEOUT_MS = 30_000
 
 DATA_DIR = "data/raw"
@@ -148,12 +125,10 @@ def scrape_fight_data(page, fight_url):
 
     all_tables = soup.find_all("table")
 
-    # Modern era fights should always have at least 3 tables.
     if len(all_tables) < 3:
         print("  -> Missing Significant Strikes table. Skipping incomplete fight!")
         return None, None
 
-    # THE FIX: Table 0 is Totals, Table 2 is Sig Strikes Overall
     table_0 = all_tables[0]
     table_1 = all_tables[2] 
 
@@ -181,8 +156,6 @@ def scrape_fight_data(page, fight_url):
         row_data_0 = [cell.get_text(separator=" | ", strip=True) for cell in cells_0]
         row_data_1 = [cell.get_text(separator=" | ", strip=True) for cell in cells_1]
 
-        # --- THE BULLETPROOF SAFETY CHECK ---
-        # If the row length doesn't perfectly match the header length, SKIP IT!
         if len(row_data_0) != len(t0_titles) or len(row_data_1) != len(t1_titles):
             continue
 
