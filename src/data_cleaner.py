@@ -9,8 +9,6 @@ df["Ctrl"] = df["Ctrl"].replace(["---", "--"], "0:00")
 time_parts = df["Ctrl"].str.split(":", expand=True).astype(int)
 df["Ctrl"] = (time_parts[0] * 60) + time_parts[1]
 
-import numpy as np
-
 columns = ['Sig. str.', 'Total str.', 'Td', 'Head (SS)', 'Body (SS)', 'Leg (SS)', 'Distance (SS)', 'Clinch (SS)', 'Ground (SS)']
 
 
